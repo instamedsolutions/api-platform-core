@@ -155,16 +155,17 @@ final class PublishMercureUpdatesListener
         }
 
         $options = $this->resourceMetadataFactory->create($resourceClass)->getAttribute('mercure', false);
-        if (false === $options) {
-            return;
-        }
-
+       
         if (\is_string($options)) {
             if (null === $this->expressionLanguage) {
                 throw new RuntimeException('The Expression Language component is not installed. Try running "composer require symfony/expression-language".');
             }
 
             $options = $this->expressionLanguage->evaluate($options, ['object' => $object]);
+        }
+        
+         if (false === $options) {
+            return;
         }
 
         if (true === $options) {
