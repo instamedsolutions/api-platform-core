@@ -14,6 +14,7 @@
             <argument type="service" id="api_platform.metadata.resource.metadata_factory" />
             <argument type="service" id="api_platform.serializer" />
             <argument>%api_platform.formats%</argument>
+            <argument>%api_platform.mercure.formats%</argument>
             <argument type="service" id="messenger.default_bus" on-invalid="ignore" />
             <argument type="service" id="mercure.hub.default.publisher" />
             <argument type="service" id="api_platform.graphql.subscription.subscription_manager" on-invalid="ignore" />

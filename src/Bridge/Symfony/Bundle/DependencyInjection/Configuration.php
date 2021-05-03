@@ -406,6 +406,12 @@ final class Configuration implements ConfigurationInterface
                             ->defaultNull()
                             ->info('The URL sent in the Link HTTP header. If not set, will default to the URL for MercureBundle\'s default hub.')
                         ->end()
+                        ->arrayNode('formats')
+                            ->beforeNormalization()->castToArray()->end()
+                            ->defaultValue([])
+                            ->info('The list of formats which the mercure bundle should normalize the data to.')
+                            ->prototype('scalar')
+                        ->end()
                     ->end()
                 ->end()
             ->end();

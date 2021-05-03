@@ -203,10 +203,27 @@ final class PublishMercureUpdatesListener
     }
 
     /**
+     * @param object $entity
+     */
+    private function publishUpdates($entity, array $options,string $type): void
+    {
+
+        $formats = $this->mercureFormats ?? [key($this->formats)];
+
+        foreach ($formats as $format) {
+            $this->publishUpdate($entity,$options,$type,$format);
+        }
+
+    }
+
+
+
+    /**
      * @param object $object
      */
-    private function publishUpdate($object, array $options, string $type): void
+    private function publishUpdate($object, array $options, string $type,string $format = null): void
     {
+
         if ($object instanceof \stdClass) {
             // By convention, if the object has been deleted, we send only its IRI.
             // This may change in the feature, because it's not JSON Merge Patch compliant,
@@ -219,10 +236,18 @@ final class PublishMercureUpdatesListener
             $context = $options['normalization_context'] ?? $this->resourceMetadataFactory->create($resourceClass)->getAttribute('normalization_context', []);
 
             $iri = $options['topics'] ?? $this->iriConverter->getIriFromItem($object, UrlGeneratorInterface::ABS_URL);
-            $data = $options['data'] ?? $this->serializer->serialize($object, key($this->formats), $context);
+            $data = $options['data'] ?? $this->serializer->serialize($object, $format ?? key($this->formats), $context);
         }
 
+        if($format) {
+            foreach ($iri as &$url) {
+                $url = "/$format$url";
+            }
+        }
+
+
         $updates = array_merge([$this->buildUpdate($iri, $data, $options)], $this->getGraphQlSubscriptionUpdates($object, $options, $type));
+
 
         foreach ($updates as $update) {
             $this->messageBus ? $this->dispatch($update) : ($this->publisher)($update);
