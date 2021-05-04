@@ -56,11 +56,12 @@ final class PublishMercureUpdatesListener
     private $updatedEntities;
     private $deletedEntities;
     private $formats;
+    private $mercureFormats;
 
     /**
      * @param array<string, string[]|string> $formats
      */
-    public function __construct(ResourceClassResolverInterface $resourceClassResolver, IriConverterInterface $iriConverter, ResourceMetadataFactoryInterface $resourceMetadataFactory, SerializerInterface $serializer, array $formats, MessageBusInterface $messageBus = null, callable $publisher = null, ExpressionLanguage $expressionLanguage = null)
+    public function __construct(ResourceClassResolverInterface $resourceClassResolver, IriConverterInterface $iriConverter, ResourceMetadataFactoryInterface $resourceMetadataFactory, SerializerInterface $serializer, array $formats,array $mercureFormats = null,MessageBusInterface $messageBus = null, callable $publisher = null, ExpressionLanguage $expressionLanguage = null)
     {
         if (null === $messageBus && null === $publisher) {
             throw new InvalidArgumentException('A message bus or a publisher must be provided.');
@@ -75,6 +76,7 @@ final class PublishMercureUpdatesListener
         $this->publisher = $publisher;
         $this->expressionLanguage = $expressionLanguage ?? class_exists(ExpressionLanguage::class) ? new ExpressionLanguage() : null;
         $this->reset();
+        $this->mercureFormats = $mercureFormats;
     }
 
     /**
@@ -104,15 +106,15 @@ final class PublishMercureUpdatesListener
     {
         try {
             foreach ($this->createdEntities as $entity) {
-                $this->publishUpdate($entity, $this->createdEntities[$entity]);
+                $this->publishUpdates($entity, $this->createdEntities[$entity]);
             }
 
             foreach ($this->updatedEntities as $entity) {
-                $this->publishUpdate($entity, $this->updatedEntities[$entity]);
+                $this->publishUpdates($entity, $this->updatedEntities[$entity]);
             }
 
             foreach ($this->deletedEntities as $entity) {
-                $this->publishUpdate($entity, $this->deletedEntities[$entity]);
+                $this->publishUpdates($entity, $this->deletedEntities[$entity]);
             }
         } finally {
             $this->reset();
@@ -190,7 +192,24 @@ final class PublishMercureUpdatesListener
     /**
      * @param object $entity
      */
-    private function publishUpdate($entity, array $options): void
+    private function publishUpdates($entity, array $options): void
+    {
+
+        if($this->mercureFormats) {
+            foreach ($this->mercureFormats as $format) {
+                $this->publishUpdate($entity, $options, $format);
+            }
+        } else {
+            $this->publishUpdate($entity, $options);
+        }
+
+    }
+
+
+    /**
+     * @param object $entity
+     */
+    private function publishUpdate($entity, array $options,string $format = null): void
     {
         if ($entity instanceof \stdClass) {
             // By convention, if the entity has been deleted, we send only its IRI
@@ -204,7 +223,13 @@ final class PublishMercureUpdatesListener
             $context = $this->resourceMetadataFactory->create($resourceClass)->getAttribute('normalization_context', []);
 
             $iri = $options['topics'] ?? $this->iriConverter->getIriFromItem($entity, UrlGeneratorInterface::ABS_URL);
-            $data = $options['data'] ?? $this->serializer->serialize($entity, key($this->formats), $context);
+            $data = $options['data'] ?? $this->serializer->serialize($entity, $format ?? key($this->formats), $context);
+        }
+
+        if($format) {
+            foreach ($iri as &$url) {
+                $url = "/$format$url";
+            }
         }
 
         if (method_exists(Update::class, 'isPrivate')) {
