@@ -43,6 +43,7 @@ final class PublishMercureUpdatesListener
         'id' => true,
         'type' => true,
         'retry' => true,
+        'context' => true,
     ];
 
     use DispatchTrait;
@@ -148,9 +149,9 @@ final class PublishMercureUpdatesListener
             }
 
             $options = $this->expressionLanguage->evaluate($options, ['object' => $entity]);
-	}
+        }
 
-	if (false === $options) {
+        if (false === $options) {
             return;
         }
 
@@ -199,9 +200,9 @@ final class PublishMercureUpdatesListener
             foreach ($this->mercureFormats as $format) {
                 $this->publishUpdate($entity, $options, $format);
             }
-        } else {
-            $this->publishUpdate($entity, $options);
-        }
+        } //else {
+        $this->publishUpdate($entity, $options);
+        // }
 
     }
 
@@ -221,6 +222,11 @@ final class PublishMercureUpdatesListener
         } else {
             $resourceClass = $this->getObjectClass($entity);
             $context = $this->resourceMetadataFactory->create($resourceClass)->getAttribute('normalization_context', []);
+
+            if(isset($options['context']) && is_array($options['context'])) {
+                $context = array_merge_recursive($context,$options['context']);
+            }
+
 
             $iri = $options['topics'] ?? $this->iriConverter->getIriFromItem($entity, UrlGeneratorInterface::ABS_URL);
             $data = $options['data'] ?? $this->serializer->serialize($entity, $format ?? key($this->formats), $context);
