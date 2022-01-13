@@ -24,6 +24,7 @@ use ApiPlatform\Core\Metadata\Property\Factory\PropertyNameCollectionFactoryInte
 use ApiPlatform\Core\Metadata\Resource\Factory\ResourceMetadataFactoryInterface;
 use ApiPlatform\Core\Serializer\SerializerContextBuilderInterface;
 use Doctrine\ORM\Mapping\ClassMetadataInfo;
+use Doctrine\ORM\Query\Expr\Join;
 use Doctrine\ORM\QueryBuilder;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Serializer\Mapping\Factory\ClassMetadataFactoryInterface;
@@ -131,6 +132,7 @@ final class EagerLoadingExtension implements ContextAwareQueryCollectionExtensio
      */
     private function joinRelations(QueryBuilder $queryBuilder, QueryNameGeneratorInterface $queryNameGenerator, string $resourceClass, bool $forceEager, bool $fetchPartial, string $parentAlias, array $options = [], array $normalizationContext = [], bool $wasLeftJoin = false, int &$joinCount = 0, int $currentDepth = null)
     {
+
         if ($joinCount > $this->maxJoins) {
             throw new RuntimeException('The total number of joined relations has exceeded the specified maximum. Raise the limit if necessary with the "api_platform.eager_loading.max_joins" configuration key (https://api-platform.com/docs/core/performance/#eager-loading), or limit the maximum serialization depth using the "enable_max_depth" option of the Symfony serializer (https://symfony.com/doc/current/components/serializer.html#handling-serialization-depth).');
         }
@@ -197,9 +199,13 @@ final class EagerLoadingExtension implements ContextAwareQueryCollectionExtensio
                 $method = 'innerJoin';
             }
 
-            $associationAlias = $queryNameGenerator->generateJoinAlias($association);
-            $queryBuilder->{$method}(sprintf('%s.%s', $parentAlias, $association), $associationAlias);
-            ++$joinCount;
+            $associationAlias = $this->getAssociationAlias($queryBuilder,$parentAlias,$association,$method);
+
+            if(null === $associationAlias) {
+                $associationAlias = $queryNameGenerator->generateJoinAlias($association);
+                $queryBuilder->{$method}(sprintf('%s.%s', $parentAlias, $association), $associationAlias);
+                ++$joinCount;
+            }
 
             if (true === $fetchPartial) {
                 try {
@@ -299,4 +305,53 @@ final class EagerLoadingExtension implements ContextAwareQueryCollectionExtensio
 
         return $context ?? [];
     }
+
+    /**
+     * @param QueryBuilder $queryBuilder
+     * @param string $parentAlias
+     * @param string $association
+     * @param string $method
+     * @return string|null
+     */
+    private function getAssociationAlias(
+        QueryBuilder $queryBuilder,
+        string $parentAlias,
+        string $association,
+        string $method
+    ): ?string {
+
+        $joins = $queryBuilder->getDQLPart("join");
+
+        $alias = $queryBuilder->getRootAliases()[0];
+
+        $type = $method === "leftJoin" ? "LEFT" : "INNER";
+
+        if (!isset($joins[$alias])) {
+            return null;
+        }
+
+        /** @var Join $join */
+        foreach ($joins["o"] as $join) {
+
+            if($join->getCondition() !== null) {
+                continue;
+            }
+
+            if ($join->getJoin() !== "$parentAlias.$association") {
+                continue;
+            }
+
+
+            if ($type !== $join->getJoinType()) {
+                continue;
+            }
+
+            return $join->getAlias();
+
+        }
+
+        return null;
+
+    }
+
 }
